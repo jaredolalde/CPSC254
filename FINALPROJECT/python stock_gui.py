@@ -66,7 +66,7 @@ def get_data():
 
 # Create the main application window
 root = tk.Tk()
-root.title("Dynamic Stock Data Viewer")
+root.title("Stock Price Viewer")
 
 # Create a frame for ticker entries
 ticker_frame = ttk.Frame(root)
