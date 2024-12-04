@@ -1,29 +1,69 @@
+import os
+import pandas as pd
 import tkinter as tk
 from tkinter import ttk
-from tkcalendar import DateEntry  # Ensure tkcalendar is installed
+from tkcalendar import DateEntry
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import yfinance as yf
 
+script_dir = os.path.dirname(os.path.abspath(__file__))
+nasdaq_csv_path = os.path.join(script_dir, 'nasdaq-listed.csv')
+nyse_csv_path = os.path.join(script_dir, 'nyse.csv')
+
+try:
+    nasdaq_tickers = pd.read_csv(nasdaq_csv_path)['Symbol'].dropna().tolist()
+    nasdaq_tickers = [str(ticker) for ticker in nasdaq_tickers if isinstance(ticker, str)]
+    
+    nyse_tickers = pd.read_csv(nyse_csv_path)['Symbol'].dropna().tolist()
+    nyse_tickers = [str(ticker) for ticker in nyse_tickers if isinstance(ticker, str)]
+    
+    all_tickers = nasdaq_tickers + nyse_tickers
+except FileNotFoundError as e:
+    print(f"File not found: {e}")
+    all_tickers = []
+
+active_entry = None
+
+def fetch_ticker_suggestions(query):
+    query = query.upper().strip()
+    return [ticker for ticker in all_tickers if query in ticker]
+
+def update_suggestions(*args):
+    query = ticker_search_var.get()
+    suggestions = fetch_ticker_suggestions(query)
+    ticker_listbox.delete(0, tk.END)
+    for ticker in suggestions:
+        ticker_listbox.insert(tk.END, ticker)
+
+def set_active_entry(entry_name):
+    global active_entry
+    active_entry = entry_name.widget
+
+def select_ticker(event):
+    global active_entry
+    selected_ticker = ticker_listbox.get(ticker_listbox.curselection())
+    if active_entry:
+        active_entry.delete(0, tk.END)
+        active_entry.insert(0, selected_ticker)
+
 def add_ticker():
-    """Add a new ticker entry row."""
     row = len(ticker_widgets)
     label = ttk.Label(ticker_frame, text=f"Enter stock ticker {row + 1}:")
     label.grid(row=row, column=0, padx=5, pady=5)
     entry = ttk.Entry(ticker_frame)
     entry.grid(row=row, column=1, padx=5, pady=5)
+    entry.bind("<FocusIn>", set_active_entry)
     ticker_widgets.append((label, entry))
 
 def remove_ticker():
-    """Remove the last ticker entry row."""
     if ticker_widgets:  # Ensure there's at least one widget to remove
         label, entry = ticker_widgets.pop()
         label.destroy()  # Remove the label from the UI
         entry.destroy()  # Remove the entry from the UI
 
 def get_data():
-    """Fetches data for multiple stocks and displays them on the same graph."""
     try:
         tickers = [entry.get() for _, entry in ticker_widgets]
         start_date = start_date_entry.get_date()
@@ -79,7 +119,22 @@ ticker_widgets = []
 for _ in range(2):
     add_ticker()
 
-# Date inputs
+# Create StringVar for search
+ticker_search_var = tk.StringVar()
+ticker_search_var.trace_add("write", update_suggestions)
+
+# Create a search entry box
+search_label = ttk.Label(root, text="Search for a ticker, click on the ticker text box you wish to fill then click the ticker in the list you'd like: \n[Disclaimer: only stocks from the NASDAQ and NYSE are included]")
+search_label.grid(row=0, column=2, padx=5, pady=5)
+search_entry = ttk.Entry(root, textvariable=ticker_search_var)
+search_entry.grid(row=0, column=3, padx=5, pady=5)
+
+# Create a Listbox to display suggestions
+ticker_listbox = tk.Listbox(root, height=5)
+ticker_listbox.grid(row=1, column=2, columnspan=2, padx=5, pady=5)
+ticker_listbox.bind("<<ListboxSelect>>", select_ticker)
+
+# Dates
 start_date_label = ttk.Label(root, text="Start date:")
 start_date_label.grid(row=1, column=0, padx=5, pady=5)
 start_date_entry = DateEntry(root)
@@ -97,7 +152,7 @@ add_button.grid(row=3, column=0, padx=5, pady=10, sticky="w")
 remove_button = ttk.Button(root, text="Remove Ticker", command=remove_ticker)
 remove_button.grid(row=3, column=1, padx=5, pady=10, sticky="e")
 
-# Plot button
+# Button to fetch data
 plot_button = ttk.Button(root, text="Get Data", command=get_data)
 plot_button.grid(row=4, column=0, columnspan=2, pady=10)
 
