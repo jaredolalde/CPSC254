@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
-from tkcalendar import DateEntry
+from tkcalendar import DateEntry  # Ensure tkcalendar is installed
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
@@ -54,16 +54,19 @@ def get_data():
         plt.tight_layout()
 
         # Embed the plot in the Tkinter window
-        canvas = FigureCanvasTkAgg(fig, master=root)
+        for widget in plot_frame.winfo_children():
+            widget.destroy()  # Clear previous plot
+
+        canvas = FigureCanvasTkAgg(fig, master=plot_frame)
         canvas.draw()
-        canvas.get_tk_widget().grid(row=4, column=0, columnspan=2, pady=10)
+        canvas.get_tk_widget().pack()
 
     except Exception as e:
         error_label.config(text=f"Error: {e}")
 
 # Create the main application window
 root = tk.Tk()
-root.title("Stock Price Viewer")
+root.title("Dynamic Stock Data Viewer")
 
 # Create a frame for ticker entries
 ticker_frame = ttk.Frame(root)
@@ -98,9 +101,13 @@ remove_button.grid(row=3, column=1, padx=5, pady=10, sticky="e")
 plot_button = ttk.Button(root, text="Get Data", command=get_data)
 plot_button.grid(row=4, column=0, columnspan=2, pady=10)
 
+# Frame for displaying the plot
+plot_frame = ttk.Frame(root)
+plot_frame.grid(row=5, column=0, columnspan=2, pady=10)
+
 # Error label
 error_label = ttk.Label(root, text="", foreground="red")
-error_label.grid(row=5, column=0, columnspan=2)
+error_label.grid(row=6, column=0, columnspan=2)
 
 # Run the application
 root.mainloop()
