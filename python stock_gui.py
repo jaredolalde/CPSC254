@@ -24,6 +24,11 @@ except FileNotFoundError as e:
     print(f"File not found: {e}")
     all_tickers = []
 
+active_entry = "ticker1"
+
+def set_active_entry(entry_name):
+    global active_entry
+    active_entry = entry_name
 
 def fetch_ticker_suggestions(query):
     query = query.upper().strip()
@@ -37,10 +42,15 @@ def update_suggestions(*args):
         ticker_listbox.insert(tk.END, ticker)
 
 def select_ticker(event):
+    global active_entry
     selected_ticker = ticker_listbox.get(ticker_listbox.curselection())
-    ticker1_entry.delete(0, tk.END)
-    ticker1_entry.insert(0, selected_ticker)
-    ticker_listbox.delete(0, tk.END)
+    
+    if active_entry == "ticker1":
+        ticker1_entry.delete(0, tk.END)
+        ticker1_entry.insert(0, selected_ticker)
+    elif active_entry == "ticker2":
+        ticker2_entry.delete(0, tk.END)
+        ticker2_entry.insert(0, selected_ticker)
 
 def get_data():
     try:
@@ -87,7 +97,7 @@ ticker_search_var = tk.StringVar()
 ticker_search_var.trace_add("write", update_suggestions)
 
 # Create a search entry box
-search_label = ttk.Label(root, text="Search for a ticker: \n[Disclaimer: only stocks from the NASDAG and NYSE are included]")
+search_label = ttk.Label(root, text="Search for a ticker, click on the ticker text box you wish to fill then click the ticker in the list you'd like: \n[Disclaimer: only stocks from the NASDAQ and NYSE are included]")
 search_label.grid(row=0, column=2, padx=5, pady=5)
 search_entry = ttk.Entry(root, textvariable=ticker_search_var)
 search_entry.grid(row=0, column=3, padx=5, pady=5)
@@ -102,12 +112,14 @@ ticker1_label = ttk.Label(root, text="Enter stock ticker 1:")
 ticker1_label.grid(row=0, column=0, padx=5, pady=5)
 ticker1_entry = ttk.Entry(root)
 ticker1_entry.grid(row=0, column=1, padx=5, pady=5)
+ticker1_entry.bind("<FocusIn>", lambda _: set_active_entry("ticker1"))
 
 # Ticker 2 input
 ticker2_label = ttk.Label(root, text="Enter stock ticker 2:")
 ticker2_label.grid(row=1, column=0, padx=5, pady=5)
 ticker2_entry = ttk.Entry(root)
 ticker2_entry.grid(row=1, column=1, padx=5, pady=5)
+ticker2_entry.bind("<FocusIn>", lambda _: set_active_entry("ticker2"))
 
 # Start date input
 start_date_label = ttk.Label(root, text="Start date:")
