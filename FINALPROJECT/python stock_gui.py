@@ -7,6 +7,8 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import yfinance as yf
+import random
+from datetime import datetime, timedelta
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 nasdaq_csv_path = os.path.join(script_dir, 'nasdaq-listed.csv')
@@ -65,44 +67,160 @@ def remove_ticker():
 
 def get_data():
     try:
-        tickers = [entry.get() for _, entry in ticker_widgets]
+        tickers = [entry.get().strip().upper() for _, entry in ticker_widgets if entry.get().strip()]
+        if not tickers:
+            raise ValueError("At least one stock ticker must be entered.")
+
         start_date = start_date_entry.get_date()
         end_date = end_date_entry.get_date()
+        if start_date >= end_date:
+            raise ValueError("Start date must be before the end date.")
 
-        if not tickers or any(t == "" for t in tickers):
-            raise ValueError("Please enter all ticker symbols.")
+        if end_date > datetime.now().date():
+            raise ValueError("End date cannot be in the future.")
 
-        # Fetch data and plot
-        fig, ax = plt.subplots(figsize=(6, 4))
+        capital = float(capital_entry.get())
+        if capital <= 0:
+            raise ValueError("Starting capital must be greater than 0.")
+
+        # Prepare for combined plotting
+        fig, ax = plt.subplots(figsize=(8, 5))
+        total_profit_loss = 0
+        all_trade_history = []
+
         for ticker in tickers:
-            data = yf.download(ticker, start=start_date, end=end_date)
-            ax.plot(data['Close'], label=ticker)
+            try:
+                # Download stock data
+                end_date_adjusted = end_date + timedelta(days=1)
+                data = yf.download(ticker, start=start_date, end=end_date_adjusted)
+                if data.empty:
+                    raise ValueError(
+                        f"No data found for ticker '{ticker}' between the specified dates."
+                    )
 
-        # Format x-axis (dates)
+                # Simulation variables
+                shares = 0
+                buy_price = 0
+                trades = 0
+                wins = 0
+                losses = 0
+                total_profit = 0
+                trade_history = []
+
+                data = data.dropna()
+
+                local_minima = data[
+                    (data["Close"] < data["Close"].shift(1))
+                    & (data["Close"] < data["Close"].shift(-1))
+                ].dropna()
+                local_maxima = data[
+                    (data["Close"] > data["Close"].shift(1))
+                    & (data["Close"] > data["Close"].shift(-1))
+                ].dropna()
+
+                last_buy_date = None
+                stop_loss_threshold = 0.9  # Stop-loss threshold (10% drop)
+
+                for i in range(len(data.index)):
+                    date = data.index[i]
+                    price = data.loc[date, "Close"].item()
+
+                    # Buy at local minima with some randomness
+                    if date in local_minima.index.tolist() and shares == 0 and random.random() < 0.7:
+                        shares = int(capital / price)
+                        capital -= shares * price
+                        buy_price = price
+                        trades += 1
+                        last_buy_date = date
+                        trade_history.append(
+                            {
+                                "Ticker": ticker,
+                                "Date": date,
+                                "Action": "Buy",
+                                "Price": price,
+                                "Shares": shares,
+                                "Capital": capital,
+                            }
+                        )
+
+                    # Sell at local maxima, stop-loss, or last day
+                    elif (
+                        (date in local_maxima.index.tolist() and random.random() < 0.7)
+                        or (
+                            last_buy_date is not None
+                            and price < buy_price * stop_loss_threshold
+                            and shares > 0
+                        )
+                        or (i == len(data.index) - 1 and shares > 0)
+                    ):
+                        if shares > 0:
+                            trade_profit = shares * (price - buy_price)
+                            total_profit += trade_profit
+                            capital += shares * price
+                            if trade_profit > 0:
+                                wins += 1
+                            else:
+                                losses += 1
+                            trade_history.append(
+                                {
+                                    "Ticker": ticker,
+                                    "Date": date,
+                                    "Action": "Sell",
+                                    "Price": price,
+                                    "Shares Sold": shares,
+                                    "Capital": capital,
+                                    "Profit/Loss": trade_profit,
+                                }
+                            )
+                            shares = 0
+                            last_buy_date = None
+
+                # Save trade history for this ticker
+                df = pd.DataFrame(trade_history)
+                df = df.round({"Price": 3, "Capital": 3, "Profit/Loss": 3})
+                filename = f"trade_history_{ticker}.csv"
+                df.to_csv(filename, index=False)
+
+                # Add this ticker's profit/loss to total
+                total_profit_loss += total_profit
+                all_trade_history.append({"Ticker": ticker, "Profit/Loss": total_profit})
+
+                # Plot data for this ticker
+                ax.plot(data.index, data["Close"], label=f"{ticker} (Profit: ${total_profit:.2f})")
+
+            except Exception as e:
+                print(f"Skipping {ticker} due to error: {e}")
+
+        # Finalize plot
         ax.xaxis.set_major_locator(mdates.MonthLocator(interval=1))
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
+        ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m"))
         fig.autofmt_xdate()
-
-        # Format y-axis (prices)
-        ax.yaxis.set_major_formatter('${x:.2f}')
-
-        plt.xlabel("Date")
-        plt.ylabel("Closing Price")
-        plt.title("Stock Prices")
-        plt.grid(True)
-        plt.legend()  # Add legend to identify the lines
-        plt.tight_layout()
-
-        # Embed the plot in the Tkinter window
-        for widget in plot_frame.winfo_children():
-            widget.destroy()  # Clear previous plot
-
+        ax.set_xlabel("Date")
+        ax.set_ylabel("Closing Price ($)")
+        ax.set_title("Stock Price Simulation")
+        ax.grid(True)
+        ax.legend()
         canvas = FigureCanvasTkAgg(fig, master=plot_frame)
         canvas.draw()
-        canvas.get_tk_widget().pack()
+        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
 
+        # Display combined results
+        result_text = "\n".join([f"{t['Ticker']}: ${t['Profit/Loss']:.2f}" for t in all_trade_history])
+        result_label.config(
+            text=f"Total Profit/Loss: ${total_profit_loss:.2f}\n"
+            f"Per Ticker Results:\n{result_text}",
+            foreground="black",
+        )
+        error_label.config(text="")
+
+    except ValueError as ve:
+        error_label.config(text=f"Error: {ve}", foreground="red")
     except Exception as e:
-        error_label.config(text=f"Error: {e}")
+        import traceback
+        error_details = traceback.format_exc()
+        error_label.config(text=f"Unexpected error: {e}", foreground="red")
+        print(error_details)
+
 
 # Create the main application window
 root = tk.Tk()
@@ -147,22 +265,39 @@ end_date_entry.grid(row=2, column=1, padx=5, pady=5)
 
 # Add and Remove buttons
 add_button = ttk.Button(root, text="Add Ticker", command=add_ticker)
-add_button.grid(row=3, column=0, padx=5, pady=10, sticky="w")
+add_button.grid(row=4, column=0, padx=5, pady=10, sticky="w")
 
 remove_button = ttk.Button(root, text="Remove Ticker", command=remove_ticker)
-remove_button.grid(row=3, column=1, padx=5, pady=10, sticky="e")
+remove_button.grid(row=4, column=1, padx=5, pady=10, sticky="e")
 
-# Button to fetch data
-plot_button = ttk.Button(root, text="Get Data", command=get_data)
-plot_button.grid(row=4, column=0, columnspan=2, pady=10)
+# Add a label for Starting Capital
+capital_label = ttk.Label(root, text="Starting Capital:")
+capital_label.grid(row=3, column=0, padx=5, pady=5)
 
-# Frame for displaying the plot
-plot_frame = ttk.Frame(root)
-plot_frame.grid(row=5, column=0, columnspan=2, pady=10)
+# Entry for Starting Capital
+capital_entry = ttk.Entry(root)
+capital_entry.grid(row=3, column=1, padx=5, pady=5, sticky="ew")
+
+# Add some padding above the "Get Data" button
+get_data_button = ttk.Button(root, text="Get Data", command=get_data)
+get_data_button.grid(row=4, column=0, columnspan=2, pady=(15, 10))  # Extra padding above
 
 # Error label
 error_label = ttk.Label(root, text="", foreground="red")
-error_label.grid(row=6, column=0, columnspan=2)
+error_label.grid(row=5, column=0, columnspan=4, pady=5, sticky="ew")
+
+# Result label
+result_label = ttk.Label(root, text="", justify="left")
+result_label.grid(row=6, column=0, columnspan=4, pady=5, sticky="ew")
+
+# Plot frame
+plot_frame = ttk.Frame(root)
+plot_frame.grid(row=7, column=0, columnspan=4, pady=10, sticky="nsew")
+
+# Adjust grid weights for dynamic resizing
+root.grid_columnconfigure(0, weight=1)
+root.grid_columnconfigure(1, weight=1)
+root.grid_rowconfigure(7, weight=1)  # Allow plot_frame to expand dynamically
 
 # Run the application
 root.mainloop()
