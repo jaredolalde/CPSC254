@@ -183,7 +183,7 @@ def get_data():
 
                 # Add this ticker's profit/loss to total
                 total_profit_loss += total_profit
-                all_trade_history.append({"Ticker": ticker, "Profit/Loss": total_profit})
+                all_trade_history.append({"Ticker": ticker, "Profit/Loss": total_profit, "Total Trades" : trades, "Wins" : wins, "Lost": losses})
 
                 # Plot data for this ticker
                 ax.plot(data.index, data["Close"], label=f"{ticker} (Profit: ${total_profit:.2f})")
@@ -205,7 +205,7 @@ def get_data():
         canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
 
         # Display combined results
-        result_text = "\n".join([f"{t['Ticker']}: ${t['Profit/Loss']:.2f}" for t in all_trade_history])
+        result_text = "\n".join([f"{t['Ticker']}: ${t['Profit/Loss']: .2f}  Trades: {t["Total Trades"]: .0f}    Wins: {t["Wins"]: .0f}  Losses: {t["Lost"]: .0f}" for t in all_trade_history])
         result_label.config(
             text=f"Total Profit/Loss: ${total_profit_loss:.2f}\n"
             f"Per Ticker Results:\n{result_text}",
