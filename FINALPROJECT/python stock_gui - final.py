@@ -52,11 +52,7 @@ def select_ticker(event):
 
 
 def get_data():
-    """
-    Fetches stock data, simulates buying and selling with added randomness
-    and a stop-loss mechanism, displays results, and generates a CSV file
-    with trade history.
-    """
+
     try:
         ticker = ticker_entry.get().strip().upper()
         if not ticker:
