@@ -15,6 +15,7 @@ nasdaq_csv_path = os.path.join(script_dir, 'nasdaq-listed.csv')
 nyse_csv_path = os.path.join(script_dir, 'nyse.csv')
 
 try:
+    # this would load the CSV files for the search function
     nasdaq_tickers = pd.read_csv(nasdaq_csv_path)['Symbol'].dropna().tolist()
     nasdaq_tickers = [str(ticker) for ticker in nasdaq_tickers if isinstance(ticker, str)]
     
@@ -26,13 +27,16 @@ except FileNotFoundError as e:
     print(f"File not found: {e}")
     all_tickers = []
 
+# keeps track on which ticker is using the search function
 active_entry = None
 
 def fetch_ticker_suggestions(query):
+    # when clicking one of the tickers 
     query = query.upper().strip()
     return [ticker for ticker in all_tickers if query in ticker]
 
 def update_suggestions(*args):
+    # would update the suggestions when typing into the search function
     query = ticker_search_var.get()
     suggestions = fetch_ticker_suggestions(query)
     ticker_listbox.delete(0, tk.END)
@@ -40,10 +44,12 @@ def update_suggestions(*args):
         ticker_listbox.insert(tk.END, ticker)
 
 def set_active_entry(entry_name):
+    # when clicking on another ticker it would switch the active ticker
     global active_entry
     active_entry = entry_name.widget
 
 def select_ticker(event):
+    # would grab the active ticker and replace it for the selected ticker via the search function
     global active_entry
     selected_ticker = ticker_listbox.get(ticker_listbox.curselection())
     if active_entry:
@@ -51,6 +57,7 @@ def select_ticker(event):
         active_entry.insert(0, selected_ticker)
 
 def add_ticker():
+    # this would add a ticker to simulate
     row = len(ticker_widgets)
     label = ttk.Label(ticker_frame, text=f"Enter stock ticker {row + 1}:")
     label.grid(row=row, column=0, padx=5, pady=5)
@@ -67,6 +74,7 @@ def remove_ticker():
 
 def get_data():
     try:
+        # to make sure all the right parameters are in
         tickers = [entry.get().strip().upper() for _, entry in ticker_widgets if entry.get().strip()]
         if not tickers:
             raise ValueError("At least one stock ticker must be entered.")
